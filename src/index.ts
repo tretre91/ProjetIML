@@ -1,5 +1,5 @@
 import '@marcellejs/core/dist/marcelle.css';
-import { dashboard, Dataset, dataStore, notification } from '@marcellejs/core';
+import { dashboard, Dataset, dataStore, GenericChart, notification, Stream } from '@marcellejs/core';
 import * as marcelle from '@marcellejs/core'
 import { SnapshotService } from './snapshot-service';
 import { DatasetSummary, datasetSummary } from './components';
@@ -19,6 +19,7 @@ const featureExtractor = marcelle.mobileNet();
 const classifier = marcelle.mlpClassifier({ layers: [32, 32], epochs: 20 });
 const dataset = marcelle.dataset("TrainingSet", storage);
 var datasetBrowser = marcelle.datasetBrowser(dataset);
+const params = marcelle.modelParameters(classifier);
 
 // Components
 const input = marcelle.webcam();
@@ -27,8 +28,9 @@ labelInput.title = "Instance label";
 
 const capture = marcelle.button("Click to record an instance");
 capture.title = "Capture instances to the training set";
-const trainingButton = marcelle.button("Train");
-const saveButton = marcelle.button("Save dataset")
+const trainingButton = marcelle.button("Train the model");
+trainingButton.title = "Train";
+const trainingStatus = marcelle.trainingProgress(classifier);
 const saveNameInput = marcelle.textInput();
 saveNameInput.title = "Snapshot name";
 
@@ -42,7 +44,19 @@ input.$images
   .awaitPromises()
   .subscribe(dataset.create);
 
-trainingButton.$click.subscribe(() => { classifier.train(dataset); });
+var snapshotName: string;
+
+trainingButton.$click.subscribe(() => {
+  snapshotName = saveNameInput.$value.get().trim();// TODO: handle empty
+  if (snapshotName == "") {
+    notification({
+      title: "Error",
+      message: "You need to give your snapshot a name",
+    });
+  } else {
+    classifier.train(dataset);
+  }
+});
 
 
 /**
@@ -50,7 +64,7 @@ trainingButton.$click.subscribe(() => { classifier.train(dataset); });
  * @param targets A list of components which will need to be updated after
  * @return a Promise<void>
  */
-async function createSnapshot(name: string, dataset: Dataset<any>, targets: (DatasetSummary)[]): Promise<void> {
+async function createSnapshot(name: string, dataset: Dataset<any>, model_id: string, metrics: Object, targets: (DatasetSummary)[]): Promise<void> {
   dataset.items()
     .toArray()
     .then((instances) => {
@@ -60,7 +74,12 @@ async function createSnapshot(name: string, dataset: Dataset<any>, targets: (Dat
         },
         instances: instances,
       };
-      return snapshotService.create({ name: name, data: JSON.stringify(data) });
+      return snapshotService.create({
+        name: name,
+        instances: JSON.stringify(data),
+        model_id: model_id,
+        training_metrics: metrics,
+      });
     })
     .then(() => {
       for (const target of targets) {
@@ -70,21 +89,60 @@ async function createSnapshot(name: string, dataset: Dataset<any>, targets: (Dat
     });
 }
 
-// Custom components used to display info about a snapshot
-const summaryA = datasetSummary(snapshotService);
-const summaryB = datasetSummary(snapshotService);
-
-saveButton.$click.subscribe(async () => {
-  let snapshotName = saveNameInput.$value.get();
-  if (snapshotName.trim() == "") {
-    notification({
-      title: "Error",
-      message: "You need to give your snapshot a name",
-    });
-    return;
+classifier.$training.subscribe(async (status) => {
+  if (status.status == "success") {
+    const model_id = await classifier.save(storage, snapshotName + "_model");
+    createSnapshot(snapshotName, dataset, model_id, status.data, [summaryA, summaryB]);
   }
-  await createSnapshot(snapshotName, dataset, [summaryA, summaryB]);
+  console.log(status);
 });
+
+// TODO: create a module for predefined visualizations
+let accGraphGenerator = function(snapshot: DatasetSnapshot): GenericChart {
+  let data = snapshot.training_metrics;
+  let chart = marcelle.genericChart({
+    preset: 'line',
+    options: {
+      xlabel: "Nb epoch",
+      ylabel: "Accuracy",
+    }
+  });
+
+  chart.title = "Accuracy graph";
+
+  let acc_stream = new Stream<{ x: number, y: number }[]>(data.acc.map((acc: number, i: number) => { return { x: i, y: acc }; }));
+  chart.addSeries(acc_stream, "Accuracy");
+
+  let val_acc_stream = new Stream<{ x: number, y: number }[]>(data.accVal.map((acc: number, i: number) => { return { x: i, y: acc }; }));
+  chart.addSeries(val_acc_stream, "Validation accuracy");
+
+  return chart;
+}
+
+let lossGraphGenerator = function(snapshot: DatasetSnapshot): GenericChart {
+  let data = snapshot.training_metrics;
+  let chart = marcelle.genericChart({
+    preset: 'line',
+    options: {
+      xlabel: "Nb epoch",
+      ylabel: "Loss",
+    }
+  });
+
+  chart.title = "Loss graph";
+
+  let lossStream = new Stream<{ x: number, y: number }[]>(data.loss.map((loss: number, i: number) => { return { x: i, y: loss }; }));
+  chart.addSeries(lossStream, "Loss");
+
+  let valLossStream = new Stream<{ x: number, y: number }[]>(data.lossVal.map((loss: number, i: number) => { return { x: i, y: loss }; }));
+  chart.addSeries(valLossStream, "Validation loss");
+
+  return chart;
+}
+
+// Custom components used to display info about a snapshot
+const summaryA = datasetSummary(snapshotService, [accGraphGenerator, lossGraphGenerator]);
+const summaryB = datasetSummary(snapshotService, [accGraphGenerator, lossGraphGenerator]);
 
 // Pages
 const dash = dashboard({
@@ -95,8 +153,9 @@ const dash = dashboard({
 dash
   .page('Welcome')
   .sidebar(input, capture, featureExtractor)
-  .use(labelInput, datasetBrowser)
-  .use([saveNameInput, saveButton]);
+  .use([labelInput, saveNameInput], datasetBrowser)
+  .use([params, trainingButton])
+  .use(trainingStatus);
 
 // Dataset comparison page
 let comparePage = dash.page("Dataset comparison");

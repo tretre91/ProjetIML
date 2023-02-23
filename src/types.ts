@@ -11,5 +11,7 @@ export type StoredObject = {
  */
 export type DatasetSnapshot = StoredObject & {
   name: string;
-  data: string;
+  instances: string;
+  model_id: string;
+  training_metrics: any;
 }

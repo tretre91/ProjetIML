@@ -3,21 +3,34 @@ import * as marcelle from '@marcellejs/core';
 import View from './dataset-summary.view.svelte';
 import { DatasetSnapshot } from "../../types";
 
+// type of a function which generates a component given a snapshot
+export type VisualizationGenerator = (snapshot: DatasetSnapshot) => Component;
+
 export class DatasetSummary extends Component {
   title: string;
   snapshotsService: Service<DatasetSnapshot>;
   currentDataset: Dataset<any>;
   selectMenu: Select;
-  visualization: DatasetBrowser;
+  browser: DatasetBrowser;
+  visGenerators: VisualizationGenerator[];
+  currentVisualizations: Component[];
 
-  constructor(snapshots: Service<DatasetSnapshot>) {
+  constructor(snapshots: Service<DatasetSnapshot>, visualizations: VisualizationGenerator[] = []) {
     super();
     this.title = 'Dataset summary';
     this.snapshotsService = snapshots;
     this.currentDataset = marcelle.dataset(`tmp.${this.id}`, marcelle.dataStore());
     this.selectMenu = select([]);
     this.selectMenu.title = "choose a dataset";
-    this.visualization = datasetBrowser(this.currentDataset);
+    this.browser = datasetBrowser(this.currentDataset);
+    this.visGenerators = visualizations;
+    this.currentVisualizations = [];
+    for (let i = 0; i < this.visGenerators.length; i++) {
+      let text = marcelle.text("Nothing to see here 😶‍🌫️");
+      text.title = "A visualization ...";
+      this.currentVisualizations.push(text);
+    }
+
 
     this.selectMenu.$value.subscribe(async (name) => {
       let datasets = await this.snapshotsService.find({ filters: { name: name } }) as DatasetSnapshot[];
@@ -25,11 +38,20 @@ export class DatasetSummary extends Component {
         console.log("No dataset named", name);
         return;
       }
+
+      // update the dataset browser
       const dataset = datasets[0];
       this.currentDataset.$count.set(0);
-      let f = new File([dataset.data], dataset.name, { type: "application/json" });
+      let f = new File([dataset.instances], dataset.name, { type: "application/json" });
       this.currentDataset.upload([f]);
-      this.mountComponent(this.visualization, "visualization-mount");
+      this.mountComponent(this.browser, "browser-mount");
+
+      // update the user's visualizations
+      for (let i = 0; i < this.currentVisualizations.length; i++) {
+        this.currentVisualizations[i].destroy();
+        this.currentVisualizations[i] = this.visGenerators[i](dataset);
+        this.mountComponent(this.currentVisualizations[i], `visualization-mount-${i}`);
+      }
     });
 
     this.updateDatasets();
@@ -57,9 +79,11 @@ export class DatasetSummary extends Component {
       target: t,
       props: {
         title: this.title,
+        visualizations: this.visGenerators,
       },
     });
     this.mountComponent(this.selectMenu, "select-mount");
-    this.mountComponent(this.visualization, "visualization-mount");
+    this.mountComponent(this.browser, "browser-mount");
+    this.currentVisualizations.forEach((vis, i) => this.mountComponent(vis, `visualization-mount-${i}`));
   }
 }
