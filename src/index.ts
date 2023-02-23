@@ -1,9 +1,11 @@
 import '@marcellejs/core/dist/marcelle.css';
-import { dashboard, Dataset, dataStore, GenericChart, notification, Stream } from '@marcellejs/core';
+import { dashboard, Dataset, dataStore, notification } from '@marcellejs/core';
 import * as marcelle from '@marcellejs/core'
 import { SnapshotService } from './snapshot-service';
 import { DatasetSummary, datasetSummary } from './components';
 import { DatasetSnapshot } from "./types";
+import * as viz from "./visualizations";
+import { Visualization } from './components/dataset-summary/dataset-summary.component';
 
 
 // Storage
@@ -26,7 +28,7 @@ const input = marcelle.webcam();
 const labelInput = marcelle.textInput();
 labelInput.title = "Instance label";
 
-const capture = marcelle.button("Click to record an instance");
+const capture = marcelle.button("Click and hold to record instances");
 capture.title = "Capture instances to the training set";
 const trainingButton = marcelle.button("Train the model");
 trainingButton.title = "Train";
@@ -83,7 +85,7 @@ async function createSnapshot(name: string, dataset: Dataset<any>, model_id: str
     })
     .then(() => {
       for (const target of targets) {
-        target.updateDatasets();
+        target.updateSnapshots();
       }
       console.log("Updated datasets");
     });
@@ -97,52 +99,21 @@ classifier.$training.subscribe(async (status) => {
   console.log(status);
 });
 
-// TODO: create a module for predefined visualizations
-let accGraphGenerator = function(snapshot: DatasetSnapshot): GenericChart {
-  let data = snapshot.training_metrics;
-  let chart = marcelle.genericChart({
-    preset: 'line',
-    options: {
-      xlabel: "Nb epoch",
-      ylabel: "Accuracy",
-    }
-  });
-
-  chart.title = "Accuracy graph";
-
-  let acc_stream = new Stream<{ x: number, y: number }[]>(data.acc.map((acc: number, i: number) => { return { x: i, y: acc }; }));
-  chart.addSeries(acc_stream, "Accuracy");
-
-  let val_acc_stream = new Stream<{ x: number, y: number }[]>(data.accVal.map((acc: number, i: number) => { return { x: i, y: acc }; }));
-  chart.addSeries(val_acc_stream, "Validation accuracy");
-
-  return chart;
-}
-
-let lossGraphGenerator = function(snapshot: DatasetSnapshot): GenericChart {
-  let data = snapshot.training_metrics;
-  let chart = marcelle.genericChart({
-    preset: 'line',
-    options: {
-      xlabel: "Nb epoch",
-      ylabel: "Loss",
-    }
-  });
-
-  chart.title = "Loss graph";
-
-  let lossStream = new Stream<{ x: number, y: number }[]>(data.loss.map((loss: number, i: number) => { return { x: i, y: loss }; }));
-  chart.addSeries(lossStream, "Loss");
-
-  let valLossStream = new Stream<{ x: number, y: number }[]>(data.lossVal.map((loss: number, i: number) => { return { x: i, y: loss }; }));
-  chart.addSeries(valLossStream, "Validation loss");
-
-  return chart;
-}
-
 // Custom components used to display info about a snapshot
-const summaryA = datasetSummary(snapshotService, [accGraphGenerator, lossGraphGenerator]);
-const summaryB = datasetSummary(snapshotService, [accGraphGenerator, lossGraphGenerator]);
+let visualizations: Visualization[] = [
+  {
+    generator: viz.datasetBrowser,
+    options: {
+      scrollable: true,
+      options: new Map([["height", "400px"]]),
+    },
+  },
+  { generator: viz.accuracyGraph, },
+  { generator: viz.lossGraph, },
+]
+
+const summaryA = datasetSummary(snapshotService, visualizations);
+const summaryB = datasetSummary(snapshotService, visualizations);
 
 // Pages
 const dash = dashboard({

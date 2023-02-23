@@ -1,4 +1,4 @@
-import { Component, Dataset, datasetBrowser, DatasetBrowser, Select, select, Service } from '@marcellejs/core';
+import { Component, Select, select, Service } from '@marcellejs/core';
 import * as marcelle from '@marcellejs/core';
 import View from './dataset-summary.view.svelte';
 import { DatasetSnapshot } from "../../types";
@@ -6,24 +6,41 @@ import { DatasetSnapshot } from "../../types";
 // type of a function which generates a component given a snapshot
 export type VisualizationGenerator = (snapshot: DatasetSnapshot) => Component;
 
+export type StyleOptions = {
+  scrollable: boolean,
+  options: Map<string, string>,
+}
+
+export type Visualization = {
+  generator: VisualizationGenerator,
+  options?: StyleOptions,
+}
+
 export class DatasetSummary extends Component {
   title: string;
-  snapshotsService: Service<DatasetSnapshot>;
-  currentDataset: Dataset<any>;
   selectMenu: Select;
-  browser: DatasetBrowser;
+  snapshotsService: Service<DatasetSnapshot>;
   visGenerators: VisualizationGenerator[];
+  visOptions: StyleOptions[];
   currentVisualizations: Component[];
 
-  constructor(snapshots: Service<DatasetSnapshot>, visualizations: VisualizationGenerator[] = []) {
+  constructor(snapshots: Service<DatasetSnapshot>, visualizations: Visualization[] = []) {
     super();
     this.title = 'Dataset summary';
-    this.snapshotsService = snapshots;
-    this.currentDataset = marcelle.dataset(`tmp.${this.id}`, marcelle.dataStore());
     this.selectMenu = select([]);
     this.selectMenu.title = "choose a dataset";
-    this.browser = datasetBrowser(this.currentDataset);
-    this.visGenerators = visualizations;
+
+    this.snapshotsService = snapshots;
+
+    this.visGenerators = [];
+    this.visOptions = [];
+
+    for (let i = 0; i < visualizations.length; i++) {
+      this.visGenerators.push(visualizations[i].generator);
+      const opt = visualizations[i].options || { scrollable: false, options: new Map };
+      this.visOptions.push(opt)
+    }
+
     this.currentVisualizations = [];
     for (let i = 0; i < this.visGenerators.length; i++) {
       let text = marcelle.text("Nothing to see here 😶‍🌫️");
@@ -33,28 +50,23 @@ export class DatasetSummary extends Component {
 
 
     this.selectMenu.$value.subscribe(async (name) => {
-      let datasets = await this.snapshotsService.find({ filters: { name: name } }) as DatasetSnapshot[];
-      if (datasets == undefined || datasets.length == 0) {
+      let snapshots = await this.snapshotsService.find({ filters: { name: name } }) as DatasetSnapshot[];
+      if (snapshots == undefined || snapshots.length == 0) {
         console.log("No dataset named", name);
         return;
       }
 
-      // update the dataset browser
-      const dataset = datasets[0];
-      this.currentDataset.$count.set(0);
-      let f = new File([dataset.instances], dataset.name, { type: "application/json" });
-      this.currentDataset.upload([f]);
-      this.mountComponent(this.browser, "browser-mount");
+      const snapshot = snapshots[0];
 
       // update the user's visualizations
       for (let i = 0; i < this.currentVisualizations.length; i++) {
         this.currentVisualizations[i].destroy();
-        this.currentVisualizations[i] = this.visGenerators[i](dataset);
+        this.currentVisualizations[i] = this.visGenerators[i](snapshot);
         this.mountComponent(this.currentVisualizations[i], `visualization-mount-${i}`);
       }
     });
 
-    this.updateDatasets();
+    this.updateSnapshots();
   }
 
   mountComponent(component: Component, targetTag: string): void {
@@ -63,7 +75,7 @@ export class DatasetSummary extends Component {
     component.mount(target as HTMLElement);
   }
 
-  async updateDatasets(): Promise<void> {
+  async updateSnapshots(): Promise<void> {
     this.snapshotsService
       .find()
       .then((datasets) => {
@@ -79,11 +91,10 @@ export class DatasetSummary extends Component {
       target: t,
       props: {
         title: this.title,
-        visualizations: this.visGenerators,
+        options: this.visOptions,
       },
     });
     this.mountComponent(this.selectMenu, "select-mount");
-    this.mountComponent(this.browser, "browser-mount");
     this.currentVisualizations.forEach((vis, i) => this.mountComponent(vis, `visualization-mount-${i}`));
   }
 }
