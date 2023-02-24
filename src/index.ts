@@ -10,8 +10,8 @@ import { Visualization } from './components/dataset-summary/dataset-summary.comp
 
 // Storage
 
-// const storage = dataStore('localStorage');
-const storage = dataStore();
+const storage = dataStore('localStorage');
+// const storage = dataStore();
 storage.feathers.use("snapshots-service", new SnapshotService(storage.service("")));
 const snapshotService = storage.service<DatasetSnapshot>("snapshots-service");
 
@@ -94,26 +94,10 @@ async function createSnapshot(name: string, dataset: Dataset<any>, model_id: str
 classifier.$training.subscribe(async (status) => {
   if (status.status == "success") {
     const model_id = await classifier.save(storage, snapshotName + "_model");
-    createSnapshot(snapshotName, dataset, model_id, status.data, [summaryA, summaryB]);
+    createSnapshot(snapshotName, dataset, model_id, status.data, [summaryA, summaryB, predictionA, predictionB]);
   }
   console.log(status);
 });
-
-// Custom components used to display info about a snapshot
-let visualizations: Visualization[] = [
-  {
-    generator: viz.datasetBrowser,
-    options: {
-      scrollable: true,
-      options: new Map([["height", "400px"]]),
-    },
-  },
-  { generator: viz.accuracyGraph, },
-  { generator: viz.lossGraph, },
-]
-
-const summaryA = datasetSummary(snapshotService, visualizations);
-const summaryB = datasetSummary(snapshotService, visualizations);
 
 // Pages
 const dash = dashboard({
@@ -132,10 +116,38 @@ dash
 let comparePage = dash.page("Dataset comparison");
 comparePage.showSidebar = false;
 
+// Custom components used to display info about a snapshot
+let visualizations: Visualization[] = [
+  {
+    generator: viz.datasetBrowser,
+    options: {
+      scrollable: true,
+      options: new Map([["height", "400px"]]),
+    },
+  },
+  { generator: viz.accuracyGraph, },
+  { generator: viz.lossGraph, },
+]
+
+const summaryA = datasetSummary(snapshotService, visualizations);
+const summaryB = datasetSummary(snapshotService, visualizations);
+
 comparePage.use([summaryA, summaryB]);
 
 
 let predictionsPage = dash.page("Dataset predictions");
 
+let predInput = marcelle.webcam();
+let $images = predInput.$images.map((img) => {
+  return featureExtractor.process(img);
+}).awaitPromises();
+
+let mlpConfidencePlot = viz.confidencePlot(storage, marcelle.mlpClassifier, $images);
+let predictionA = datasetSummary(snapshotService, [{ generator: mlpConfidencePlot }]);
+let predictionB = datasetSummary(snapshotService, [{ generator: mlpConfidencePlot }]);
+
+predictionsPage
+  .sidebar(predInput)
+  .use([predictionA, predictionB]);
 
 dash.show();

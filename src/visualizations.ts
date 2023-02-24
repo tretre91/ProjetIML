@@ -1,6 +1,7 @@
 import { DatasetSnapshot } from "./types";
 import * as marcelle from '@marcellejs/core';
-import { DatasetBrowser, GenericChart, Stream } from "@marcellejs/core";
+import { ConfidencePlot, DatasetBrowser, GenericChart, Model, Stream } from "@marcellejs/core";
+import { VisualizationGenerator } from "./components/dataset-summary/dataset-summary.component";
 
 let counter = 0; // TODO: see if necessary
 
@@ -57,4 +58,18 @@ export function lossGraph(snapshot: DatasetSnapshot): GenericChart {
   chart.addSeries(valLossStream, "Validation loss");
 
   return chart;
+}
+
+// Returns a function which generates a confidence plot, given modelType (constructor),
+// a datastore where models are stored and a feature stream
+export function confidencePlot(store: marcelle.DataStore, modelType: () => Model<any, any>, dataStream: Stream<any>): VisualizationGenerator {
+  return function(snapshot: DatasetSnapshot): ConfidencePlot {
+    let model = modelType();
+    model.load(store, snapshot.model_id);
+    let $predictions = dataStream.map((features) => {
+      return model.predict(features);
+    })
+      .awaitPromises();
+    return marcelle.confidencePlot($predictions);
+  }
 }
