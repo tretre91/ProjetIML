@@ -94,7 +94,11 @@ async function createSnapshot(name: string, dataset: Dataset<any>, model_id: str
 classifier.$training.subscribe(async (status) => {
   if (status.status == "success") {
     const model_id = await classifier.save(storage, snapshotName + "_model");
-    createSnapshot(snapshotName, dataset, model_id, status.data, [summaryA, summaryB, predictionA, predictionB]);
+    await createSnapshot(snapshotName, dataset, model_id, status.data, [summaryA, summaryB, predictionA, predictionB]);
+    notification({
+      title: "Snapshot creation",
+      message: `Successfuly created snapshot '${snapshotName}'`,
+    });
   }
   console.log(status);
 });
@@ -127,15 +131,15 @@ let visualizations: Visualization[] = [
   },
   { generator: viz.accuracyGraph, },
   { generator: viz.lossGraph, },
-]
+];
 
 const summaryA = datasetSummary(snapshotService, visualizations);
 const summaryB = datasetSummary(snapshotService, visualizations);
 
 comparePage.use([summaryA, summaryB]);
 
-
-let predictionsPage = dash.page("Dataset predictions");
+// Snapshot prediction page
+let predictionsPage = dash.page("Predictions");
 
 let predInput = marcelle.webcam();
 let $images = predInput.$images.map((img) => {

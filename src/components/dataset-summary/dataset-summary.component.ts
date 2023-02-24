@@ -47,8 +47,9 @@ export class DatasetSummary extends Component {
       text.title = "A visualization ...";
       this.currentVisualizations.push(text);
     }
+  }
 
-
+  setup(): void {
     this.selectMenu.$value.subscribe(async (name) => {
       let snapshots = await this.snapshotsService.find({ filters: { name: name } }) as DatasetSnapshot[];
       if (snapshots == undefined || snapshots.length == 0) {
@@ -79,7 +80,11 @@ export class DatasetSummary extends Component {
     this.snapshotsService
       .find()
       .then((datasets) => {
-        this.selectMenu.$options.set((datasets as DatasetSnapshot[]).map((dataset) => dataset.name));
+        const names = (datasets as DatasetSnapshot[]).map((dataset) => dataset.name);
+        this.selectMenu.$options.set(names);
+        if (names.length > 0 && this.selectMenu.$value.get() === undefined) {
+          this.selectMenu.$value.set(names[0]);
+        }
       });
   }
 
@@ -92,6 +97,7 @@ export class DatasetSummary extends Component {
       props: {
         title: this.title,
         options: this.visOptions,
+        setup: this.setup,
       },
     });
     this.mountComponent(this.selectMenu, "select-mount");

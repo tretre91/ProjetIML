@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { ViewContainer } from '@marcellejs/design-system';
   import { StyleOptions } from './dataset-summary.component';
 
   export let title: string;
   export let options: StyleOptions[];
+  export let setup: () => void;
 
   export function getStyle(opt: StyleOptions): string {
     let style = '';
@@ -12,6 +14,8 @@
     }
     return style + ';';
   }
+
+  onMount(setup);
 </script>
 
 <ViewContainer {title}>
