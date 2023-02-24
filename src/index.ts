@@ -30,8 +30,16 @@ labelInput.title = "Instance label";
 
 const capture = marcelle.button("Click and hold to record instances");
 capture.title = "Capture instances to the training set";
+
+const clearButton = marcelle.button("Clear instances");
+clearButton.title = "Clear";
+clearButton.$click.subscribe(() => {
+  dataset.clear();
+});
+
 const trainingButton = marcelle.button("Train the model");
 trainingButton.title = "Train";
+
 const trainingStatus = marcelle.trainingProgress(classifier);
 const saveNameInput = marcelle.textInput();
 saveNameInput.title = "Snapshot name";
@@ -112,7 +120,7 @@ const dash = dashboard({
 dash
   .page('Welcome')
   .sidebar(input, capture, featureExtractor)
-  .use([labelInput, saveNameInput], datasetBrowser)
+  .use([labelInput, saveNameInput, clearButton], datasetBrowser)
   .use([params, trainingButton])
   .use(trainingStatus);
 
@@ -156,6 +164,7 @@ predictionsPage
   .use([predictionA, predictionB]);
 
 let managementPage = dash.page("Dataset Management");
+managementPage.showSidebar = false;
 
 let snapshotsList = datasetList(snapshotService);
 const deleteButton = marcelle.button("Delete selected datasets");

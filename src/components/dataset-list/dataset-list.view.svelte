@@ -78,6 +78,9 @@
     width: 100%;
     border-collapse: collapse;
   }
+  thead {
+    background-color: #eee;
+  }
   tr {
     border: solid;
     border-width: 1px 0;
