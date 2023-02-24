@@ -26,11 +26,16 @@ export class SnapshotService {
       .find({ paginate: false })
       .then((result) => {
         let datasets = result as DatasetSnapshot[];
+        for (let i = 0; i < datasets.length; i++) {
+          datasets[i].id = (datasets[i] as any)._id;
+        }
+
         let nameFilter = params.filters?.name?.trim();
-        if (nameFilter != undefined && nameFilter != "") {
+        if (nameFilter !== undefined && nameFilter != "") {
           let dataset = datasets.find((dataset) => { return dataset.name == nameFilter; });
           return dataset != undefined ? [dataset] : [];
         }
+
         return datasets;
       });
   }

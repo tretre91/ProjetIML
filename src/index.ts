@@ -2,7 +2,7 @@ import '@marcellejs/core/dist/marcelle.css';
 import { dashboard, Dataset, dataStore, notification } from '@marcellejs/core';
 import * as marcelle from '@marcellejs/core'
 import { SnapshotService } from './snapshot-service';
-import { DatasetSummary, datasetSummary } from './components';
+import { datasetList, DatasetSummary, datasetSummary } from './components';
 import { DatasetSnapshot } from "./types";
 import * as viz from "./visualizations";
 import { Visualization } from './components/dataset-summary/dataset-summary.component';
@@ -117,7 +117,7 @@ dash
   .use(trainingStatus);
 
 // Dataset comparison page
-let comparePage = dash.page("Dataset comparison");
+let comparePage = dash.page("Dataset Comparison");
 comparePage.showSidebar = false;
 
 // Custom components used to display info about a snapshot
@@ -141,17 +141,29 @@ comparePage.use([summaryA, summaryB]);
 // Snapshot prediction page
 let predictionsPage = dash.page("Predictions");
 
-let predInput = marcelle.webcam();
-let $images = predInput.$images.map((img) => {
-  return featureExtractor.process(img);
-}).awaitPromises();
+let $images = input.$images
+  .map((img) => {
+    return featureExtractor.process(img);
+  })
+  .awaitPromises();
 
 let mlpConfidencePlot = viz.confidencePlot(storage, marcelle.mlpClassifier, $images);
 let predictionA = datasetSummary(snapshotService, [{ generator: mlpConfidencePlot }]);
 let predictionB = datasetSummary(snapshotService, [{ generator: mlpConfidencePlot }]);
 
 predictionsPage
-  .sidebar(predInput)
+  .sidebar(input)
   .use([predictionA, predictionB]);
+
+let managementPage = dash.page("Dataset Management");
+
+let snapshotsList = datasetList(snapshotService);
+const deleteButton = marcelle.button("Delete selected datasets");
+deleteButton.title = "Delete";
+deleteButton.$type.set("danger");
+deleteButton.$click.subscribe(() => snapshotsList.deleteSelected());
+
+managementPage
+  .use(snapshotsList, deleteButton);
 
 dash.show();
