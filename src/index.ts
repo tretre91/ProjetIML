@@ -167,6 +167,14 @@ let managementPage = dash.page("Dataset Management");
 managementPage.showSidebar = false;
 
 let snapshotsList = datasetList(snapshotService);
+snapshotsList.$load.subscribe((snapshot) => {
+  dataset.clear();
+  const file = new File([snapshot.instances], snapshot.name, { type: "application/json" });
+  dataset.upload([file]).then(() => {
+    notification({ title: "Loaded instances!", message: "" });
+  });
+});
+
 const deleteButton = marcelle.button("Delete selected datasets");
 deleteButton.title = "Delete";
 deleteButton.$type.set("danger");

@@ -1,4 +1,4 @@
-import { Component, Service } from '@marcellejs/core';
+import { Component, createStream, Service, Stream } from '@marcellejs/core';
 import 'list.js';
 import List from 'list.js';
 import { DatasetSnapshot } from '../../types';
@@ -23,6 +23,7 @@ export class DatasetList extends Component {
   snapshotsService: Service<DatasetSnapshot>;
   rows: Row[];
   list: List;
+  $load: Stream<DatasetSnapshot>;
 
   constructor(service: Service<DatasetSnapshot>) {
     super();
@@ -30,6 +31,7 @@ export class DatasetList extends Component {
     this.snapshotsService = service;
     this.rows = [];
     this.list = undefined;
+    this.$load = createStream<DatasetSnapshot>(Stream.never());
   }
 
   setup(): void {
@@ -68,6 +70,12 @@ export class DatasetList extends Component {
     this.rows[i].selected = v;
   }
 
+  loadInstances(i: number): void {
+    this.snapshotsService
+      .get(this.rows[i].id)
+      .then((snapshot) => this.$load.set(snapshot));
+  }
+
   async deleteSelected(): Promise<void> {
     let p = Promise.resolve();
     this.rows.forEach((row) => {
@@ -92,6 +100,7 @@ export class DatasetList extends Component {
         setup: this.setup,
         refreshList: this.refreshList,
         select: this.select,
+        loadInstances: this.loadInstances,
       },
     });
   }

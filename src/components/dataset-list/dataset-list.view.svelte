@@ -8,6 +8,7 @@
   export let setup: () => void;
   export let refreshList: () => void;
   export let select: (i: number, v: boolean) => void;
+  export let loadInstances: (i: number) => void;
 
   export function selectAll(checkbox: HTMLInputElement) {
     for (let i = 0; i < rows.length; i++) {
@@ -62,6 +63,7 @@
             <td class="creation-time"
               >{timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString()}</td
             >
+            <td><button on:click={(_) => loadInstances(i)}>Load instances</button></td>
           </tr>
         {/each}
       </tbody>
